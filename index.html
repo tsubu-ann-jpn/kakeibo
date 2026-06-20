@@ -1,0 +1,703 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>その日暮らし — 日次家計簿</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root{
+    --ink:#20262e;--paper:#eef0ec;--card:#ffffff;--line:#dfe2da;
+    --ink2:#5a6270;--green:#2c7a5b;--red:#bb4a3c;--blue:#34607d;--gold:#b88a2a;
+    --soft:#f6f7f3;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:"Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif;
+    background:var(--paper);color:var(--ink);font-size:13px;padding:18px 14px 80px}
+  .wrap{max-width:1280px;margin:0 auto}
+  header{display:flex;justify-content:space-between;align-items:flex-end;
+    border-bottom:2px solid var(--ink);padding-bottom:12px;margin-bottom:18px;flex-wrap:wrap;gap:10px}
+  .eyebrow{font-size:11px;letter-spacing:.3em;color:var(--gold);font-weight:700}
+  h1{font-family:"Yu Mincho","Hiragino Mincho ProN",serif;font-size:26px;font-weight:600;margin-top:2px}
+  .toolbar{display:flex;gap:8px;flex-wrap:wrap}
+  .btn{background:var(--blue);color:#fff;border:none;padding:8px 13px;border-radius:6px;
+    font-size:12px;cursor:pointer;font-family:inherit}
+  .btn:hover{filter:brightness(1.08)}
+  .btn.g{background:transparent;color:var(--blue);border:1px solid var(--blue)}
+  .btn.g:hover{background:var(--blue);color:#fff}
+  .btn.r{background:var(--red)}
+  .savestat{font-size:11px;color:var(--green);align-self:center;opacity:0;transition:opacity .3s;white-space:nowrap}
+
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:10px;margin-bottom:16px}
+  .acct{background:var(--card);border:1px solid var(--line);border-radius:9px;padding:11px 12px}
+  .acct .lbl{font-size:11px;color:var(--ink2);display:flex;align-items:center;gap:5px}
+  .acct .dot{width:9px;height:9px;border-radius:50%;display:inline-block}
+  .acct .val{font-family:"Yu Mincho",serif;font-size:19px;font-weight:600;margin-top:3px;
+    font-variant-numeric:tabular-nums}
+  .acct.total{background:var(--ink);color:#fff;grid-column:span 2}
+  .acct.total .lbl{color:#cfd4dc} .acct.total .val{font-size:24px}
+
+  .layout{display:grid;grid-template-columns:1.55fr 1fr;gap:18px;align-items:start}
+  @media(max-width:960px){.layout{grid-template-columns:1fr}}
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:16px}
+  .panel h2{font-size:13px;letter-spacing:.06em;color:var(--blue);margin-bottom:12px;
+    border-left:3px solid var(--gold);padding-left:9px}
+
+  .ledger{width:100%;border-collapse:collapse;font-size:12px}
+  .ledger th{position:sticky;top:0;background:var(--soft);color:var(--ink2);font-size:10px;
+    font-weight:600;padding:6px 7px;text-align:center;border-bottom:1px solid var(--line);white-space:nowrap}
+  .ledger td{padding:5px 7px;border-bottom:1px solid #eef0ea;text-align:right;
+    font-variant-numeric:tabular-nums;white-space:nowrap}
+  .ledger td.dt,.ledger td.memo{text-align:left}
+  .ledger tr:hover{background:var(--soft);cursor:pointer}
+  .ledger .in{color:var(--green)} .ledger .out{color:var(--red)}
+  .ledger .bal{font-weight:700}
+  .ledger .neg{color:var(--red)}
+  .wknd{color:var(--red)} .holi{color:var(--gold)}
+  .scroll{max-height:560px;overflow:auto;border:1px solid var(--line);border-radius:8px}
+  .mhead td{background:var(--ink);color:#fff;font-weight:600;text-align:left;font-size:11px;letter-spacing:.05em}
+
+  label{display:block;font-size:11px;color:var(--ink2);margin:9px 0 3px}
+  input,select{width:100%;padding:8px;border:1px solid var(--line);border-radius:6px;
+    font-size:13px;font-family:inherit;background:#fff}
+  input:focus,select:focus{outline:none;border-color:var(--green)}
+  .r2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .r3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+  .seg{display:flex;gap:0;margin-bottom:6px}
+  .seg button{flex:1;padding:7px;border:1px solid var(--line);background:#fff;cursor:pointer;font-family:inherit;font-size:12px}
+  .seg button:first-child{border-radius:6px 0 0 6px}
+  .seg button:last-child{border-radius:0 6px 6px 0;border-left:none}
+  .seg button.on{background:var(--blue);color:#fff;border-color:var(--blue)}
+
+  .chart-box{height:280px;position:relative}
+  .upcoming{font-size:12px}
+  .upcoming .row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px dashed var(--line)}
+  .upcoming .row .amt{font-variant-numeric:tabular-nums;font-weight:600}
+  .badge{display:inline-block;font-size:10px;padding:1px 6px;border-radius:10px;margin-left:6px}
+  .badge.in{background:#e4f1ea;color:var(--green)} .badge.out{background:#f8e8e5;color:var(--red)}
+  .hint{font-size:11px;color:var(--ink2);margin-top:8px;line-height:1.5}
+  .actualbox{margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}
+  .chkrow{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ink);margin:0}
+  .chkrow input{width:auto;margin:0}
+  .diffstat{display:flex;justify-content:space-between;align-items:baseline;padding:7px 0;border-bottom:1px dashed var(--line)}
+  .diffstat .lbl{font-size:12px;color:var(--ink2)}
+  .diffstat .v{font-variant-numeric:tabular-nums;font-weight:700;font-size:15px}
+  .diffbig{font-family:"Yu Mincho",serif;font-size:30px;font-weight:600;font-variant-numeric:tabular-nums;margin:4px 0}
+  .pos{color:var(--green)} .neg{color:var(--red)}
+  .diffmsg{padding:11px 13px;border-radius:7px;font-size:13px;margin-top:12px;line-height:1.6}
+  .diffmsg.over{background:#fcf0ec;border:1px solid var(--red);color:var(--red)}
+  .diffmsg.under{background:#e9f3ee;border:1px solid var(--green);color:var(--green)}
+  .diffmsg.none{background:var(--soft);border:1px solid var(--line);color:var(--ink2)}
+  .ledger td.diffcell{font-weight:600}
+  .asof{font-size:11px;color:var(--ink2);margin-top:2px}
+  .annual-controls{margin-bottom:12px}
+  .inlbl{display:block;font-size:12px;color:var(--ink2);margin-bottom:2px}
+  .inlbl input{width:180px;margin-top:4px}
+  .annual{width:100%;border-collapse:collapse;font-size:13px}
+  .annual th,.annual td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:right;
+    font-variant-numeric:tabular-nums;white-space:nowrap}
+  .annual th{color:var(--ink2);font-size:11px;font-weight:600;background:var(--soft)}
+  .annual th:first-child,.annual td:first-child{text-align:left}
+  .annual .yr{font-weight:700;color:var(--ink)}
+  .annual .inc{color:var(--green);font-weight:600}
+  .annual .exp{color:var(--red)}
+  .annual .net{font-weight:700}
+  .annual tr.warnrow .inc{color:var(--red)}
+  .annual .flag{display:inline-block;font-size:10px;padding:1px 7px;border-radius:10px;margin-left:6px}
+  .annual .flag.over{background:#fcf0ec;color:var(--red)}
+  .annual .flag.near{background:#fdf3e3;color:var(--gold)}
+  .annual .flag.ok{background:#e9f3ee;color:var(--green)}
+  .annual .partial{font-size:10px;color:var(--ink2);font-weight:400}
+  dialog{border:none;border-radius:12px;padding:0;max-width:460px;width:92%}
+  dialog::backdrop{background:rgba(20,25,30,.45)}
+  .modal-in{padding:20px}
+  .modal-in h3{font-size:16px;margin-bottom:4px}
+  .modal-in .sub{font-size:11px;color:var(--ink2);margin-bottom:8px}
+  .modal-actions{display:flex;gap:8px;margin-top:16px}
+  .modal-actions .btn{flex:1;text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <div>
+    <div class="eyebrow">DAILY HOUSEHOLD LEDGER</div>
+    <h1>その日暮らし</h1>
+  </div>
+  <div class="toolbar">
+    <span id="saveStatus" class="savestat"></span>
+    <button class="btn" onclick="openEntry()">＋ 記入する</button>
+    <button class="btn g" onclick="openInit()">口座残高の設定</button>
+    <button class="btn g" onclick="exportCSV()">他の端末へ渡す（書き出し）</button>
+    <button class="btn g" onclick="document.getElementById('imp').click()">他の端末から取り込む</button>
+    <button class="btn g" onclick="resetData()" style="border-color:var(--ink2);color:var(--ink2)">初期化</button>
+    <input type="file" id="imp" accept=".csv" style="display:none" onchange="importCSV(event)">
+  </div>
+</header>
+
+<div class="cards" id="cards"></div>
+
+<div class="layout">
+  <div>
+    <div class="panel">
+      <h2>年間累計（収入・支出）</h2>
+      <div id="annualBody"></div>
+    </div>
+    <div class="panel">
+      <h2>日次台帳</h2>
+      <div class="scroll">
+        <table class="ledger" id="ledger"></table>
+      </div>
+      <div class="hint">行をクリックすると編集できます。「予定残高」は入力した予定の積み上げ、「実残高」は記録した日の実際の総資産です。差額がマイナスなら予定より使いすぎ、プラスなら予定より残っています。</div>
+    </div>
+  </div>
+
+  <div>
+    <div class="panel" id="diffPanel">
+      <h2>予定と実際の差</h2>
+      <div id="diffBody"></div>
+    </div>
+    <div class="panel">
+      <h2>資産推移</h2>
+      <div class="chart-box"><canvas id="chart"></canvas></div>
+    </div>
+    <div class="panel">
+      <h2>これからの入出金予定</h2>
+      <div class="upcoming" id="upcoming"></div>
+    </div>
+  </div>
+</div>
+</div>
+
+<dialog id="dlg">
+  <div class="modal-in">
+    <h3 id="dlgTitle">記入する</h3>
+    <div class="sub">日付ごとに入金・出金を記録します。予定の入力もできます。</div>
+    <label>日付</label>
+    <input id="fDate" type="date">
+    <div class="seg" id="segIO">
+      <button data-io="out" class="on" onclick="setIO('out')">出金</button>
+      <button data-io="in" onclick="setIO('in')">入金</button>
+    </div>
+
+    <div id="inBlock" style="display:none">
+      <div class="r2">
+        <div><label>入金額</label><input id="fIn" type="number" placeholder="0"></div>
+        <div><label>入金先口座</label>
+          <select id="fInAcct"></select></div>
+      </div>
+      <label>摘要（給与・借入など）</label>
+      <input id="fInMemo" placeholder="">
+    </div>
+
+    <div id="outBlock">
+      <div class="r3" id="expFields"></div>
+      <div class="r2">
+        <div><label>出金元口座</label><select id="fOutAcct"></select></div>
+        <div><label>摘要</label><input id="fOutMemo" placeholder=""></div>
+      </div>
+    </div>
+
+    <label>メモ（祝日・備考など）</label>
+    <input id="fNote" placeholder="">
+
+    <div class="actualbox">
+      <label class="chkrow"><input type="checkbox" id="fHasActual" onchange="toggleActual()"> この日の実際の残高を記録する</label>
+      <div class="sub" style="margin:2px 0 6px">通帳やアプリで確認した各口座の実残高を入れると、予定との差を自動計算します。</div>
+      <div class="r3" id="actualFields" style="display:none"></div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn r" id="delBtn" style="display:none;flex:0 0 auto" onclick="delEntry()">削除</button>
+      <button class="btn g" onclick="document.getElementById('dlg').close()">キャンセル</button>
+      <button class="btn" onclick="saveEntry()">保存</button>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="dlgInit">
+  <div class="modal-in">
+    <h3>口座残高の設定</h3>
+    <div class="sub">起点となる各口座・電子マネーの残高を入力します。</div>
+    <div id="initFields"></div>
+    <div class="modal-actions">
+      <button class="btn g" onclick="document.getElementById('dlgInit').close()">キャンセル</button>
+      <button class="btn" onclick="saveInit()">保存</button>
+    </div>
+  </div>
+</dialog>
+
+<script>
+const SEED_INIT={"ufj":195579,"smbc":180,"cash":2540,"paypay":572,"suica":195,"pasmo":2269,"prepaid":961};
+const SEED_ENTRIES=[{"date":"2026-06-16","note":"","inAmt":0,"inMemo":"","food":2000,"transit":872,"other":0,"outMemo":""},{"date":"2026-06-17","note":"","inAmt":0,"inMemo":"","food":2000,"transit":872,"other":0,"outMemo":""},{"date":"2026-06-18","note":"","inAmt":0,"inMemo":"","food":2000,"transit":872,"other":0,"outMemo":""},{"date":"2026-06-19","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-06-20","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-06-21","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-06-22","note":"","inAmt":0,"inMemo":"","food":2000,"transit":872,"other":0,"outMemo":""},{"date":"2026-06-23","note":"","inAmt":0,"inMemo":"","food":2000,"transit":872,"other":0,"outMemo":""},{"date":"2026-06-24","note":"","inAmt":0,"inMemo":"","food":2000,"transit":872,"other":0,"outMemo":""},{"date":"2026-06-25","note":"","inAmt":190000,"inMemo":"給与","food":2000,"transit":872,"other":90000,"outMemo":"返済９"},{"date":"2026-06-26","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-06-27","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-06-28","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-06-29","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-06-30","note":"退職日","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-07-01","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":20000,"outMemo":"借入"},{"date":"2026-07-02","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-07-03","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-07-04","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-07-05","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-07-06","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":30000,"outMemo":"任継保険料"},{"date":"2026-07-07","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-07-08","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-07-09","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-07-10","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-07-11","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-07-12","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-07-13","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-07-14","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-07-15","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-07-16","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-07-17","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-07-18","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-07-19","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-07-20","note":"海の日","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-07-21","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-07-22","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-07-23","note":"Fuji Rock 26","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":50000,"outMemo":"苗場資金"},{"date":"2026-07-24","note":"","inAmt":210000,"inMemo":"給与","food":2000,"transit":0,"other":12000,"outMemo":"返済10"},{"date":"2026-07-25","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-07-26","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-07-27","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-07-28","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-07-29","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-07-30","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-07-31","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-08-01","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-08-02","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-08-03","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":20000,"outMemo":"借入"},{"date":"2026-08-04","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":30000,"outMemo":"任継保険料"},{"date":"2026-08-05","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-08-06","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-08-07","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-08-08","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-08-09","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-08-10","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-08-11","note":"山の日","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-08-12","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-08-13","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-08-14","note":"","inAmt":230165,"inMemo":"年金","food":2000,"transit":0,"other":60000,"outMemo":"家賃"},{"date":"2026-08-15","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-08-16","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-08-17","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-08-18","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-08-19","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-08-20","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-08-21","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-08-22","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-08-23","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-08-24","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-08-25","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-08-26","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-08-27","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-08-28","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-08-29","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-08-30","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-08-31","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-09-01","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":20000,"outMemo":"借入"},{"date":"2026-09-02","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":30000,"outMemo":"任継保険料"},{"date":"2026-09-03","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-09-04","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-09-05","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-09-06","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-09-07","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-09-08","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-09-09","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-09-10","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-09-11","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-09-12","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-09-13","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-09-14","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-09-15","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-09-16","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-09-17","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-09-18","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-09-19","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-09-20","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-09-21","note":"敬老の日","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-09-22","note":"国民の休日","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-09-23","note":"秋分の日","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-09-24","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-09-25","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-09-26","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-09-27","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-09-28","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-09-29","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-09-30","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-10-01","note":"失業保険","inAmt":140000,"inMemo":"","food":2000,"transit":0,"other":20000,"outMemo":"借入"},{"date":"2026-10-02","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":30000,"outMemo":"任継保険料"},{"date":"2026-10-03","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-10-04","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-10-05","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-10-06","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-10-07","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-10-08","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-10-09","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-10-10","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-10-11","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-10-12","note":"スポーツの日","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-10-13","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-10-14","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-10-15","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":60000,"outMemo":"家賃"},{"date":"2026-10-16","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-10-17","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-10-18","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-10-19","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-10-20","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-10-21","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-10-22","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-10-23","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-10-24","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-10-25","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-10-26","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-10-27","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-10-28","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-10-29","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-10-30","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-10-31","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-11-01","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":20000,"outMemo":"借入"},{"date":"2026-11-02","note":"失業保険","inAmt":140000,"inMemo":"","food":2000,"transit":0,"other":30000,"outMemo":"任継保険料"},{"date":"2026-11-03","note":"文化の日","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-11-04","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-11-05","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-11-06","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-11-07","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-11-08","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-11-09","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-11-10","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-11-11","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-11-12","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-11-13","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-11-14","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-11-15","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-11-16","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-11-17","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-11-18","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-11-19","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-11-20","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-11-21","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-11-22","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-11-23","note":"勤労感謝の日","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-11-24","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-11-25","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-11-26","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-11-27","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-11-28","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-11-29","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-11-30","note":"失業保険","inAmt":140000,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-12-01","note":"","inAmt":34548,"inMemo":"企業年金","food":2000,"transit":0,"other":20000,"outMemo":"借入"},{"date":"2026-12-02","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":30000,"outMemo":"任継保険料"},{"date":"2026-12-03","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-12-04","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-12-05","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-12-06","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-12-07","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-12-08","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-12-09","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-12-10","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-12-11","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-12-12","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-12-13","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-12-14","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-12-15","note":"","inAmt":230165,"inMemo":"年金","food":2000,"transit":0,"other":60000,"outMemo":"家賃"},{"date":"2026-12-16","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-12-17","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-12-18","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-12-19","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-12-20","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-12-21","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-12-22","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-12-23","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-12-24","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-12-25","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":30000,"outMemo":"家賃"},{"date":"2026-12-26","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-12-27","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-12-28","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-12-29","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-12-30","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2026-12-31","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-01-01","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-01-02","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-01-03","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-01-04","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-01-05","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-01-06","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-01-07","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-01-08","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-01-09","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-01-10","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-01-11","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-01-12","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-01-13","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-01-14","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-01-15","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-01-16","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-01-17","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-01-18","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-01-19","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-01-20","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-01-21","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-01-22","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-01-23","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-01-24","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-01-25","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-01-26","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-01-27","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-01-28","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-01-29","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-01-30","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-01-31","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-02-01","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-02-02","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-02-03","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-02-04","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-02-05","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-02-06","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-02-07","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-02-08","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-02-09","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-02-10","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-02-11","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-02-12","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-02-13","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-02-14","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-02-15","note":"","inAmt":230165,"inMemo":"年金","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-02-16","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-02-17","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-02-18","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-02-19","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-02-20","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-02-21","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-02-22","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-02-23","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-02-24","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-02-25","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-02-26","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-02-27","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-02-28","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-03-01","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-03-02","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-03-03","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-03-04","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-03-05","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-03-06","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-03-07","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-03-08","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-03-09","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-03-10","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-03-11","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-03-12","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-03-13","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-03-14","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-03-15","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-03-16","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-03-17","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-03-18","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-03-19","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-03-20","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-03-21","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-03-22","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-03-23","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-03-24","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-03-25","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-03-26","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-03-27","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-03-28","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-03-29","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-03-30","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-03-31","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-04-01","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-04-02","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-04-03","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-04-04","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-04-05","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-04-06","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-04-07","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-04-08","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-04-09","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-04-10","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-04-11","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-04-12","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-04-13","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-04-14","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-04-15","note":"","inAmt":230165,"inMemo":"年金","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-04-16","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-04-17","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-04-18","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-04-19","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-04-20","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-04-21","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-04-22","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-04-23","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-04-24","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-04-25","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-04-26","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-04-27","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-04-28","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-04-29","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-04-30","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-05-01","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-05-02","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-05-03","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-05-04","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-05-05","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-05-06","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-05-07","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-05-08","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-05-09","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-05-10","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-05-11","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-05-12","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-05-13","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-05-14","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-05-15","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-05-16","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-05-17","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-05-18","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""},{"date":"2027-05-19","note":"","inAmt":0,"inMemo":"","food":2000,"transit":0,"other":0,"outMemo":""}];
+</script>
+<script>
+const ACCTS=[
+  {k:'ufj',  n:'三菱UFJ銀行', c:'#d4141a'},
+  {k:'smbc', n:'三井住友銀行', c:'#0a9048'},
+  {k:'cash', n:'手元現金',     c:'#7a7466'},
+  {k:'paypay',n:'PayPay',     c:'#ea3f3f'},
+  {k:'suica',n:'Suica',       c:'#3aa856'},
+  {k:'pasmo',n:'PASMO',       c:'#e6447f'},
+  {k:'prepaid',n:'プリペイド', c:'#c08a2d'},
+];
+const YOUBI=['日','月','火','水','木','金','土'];
+
+// Expense categories. To add/remove a category, edit this one list — the form,
+// ledger, totals, and CSV all derive from it.
+const EXP_CATS=[
+  {k:'food',   n:'食費'},
+  {k:'transit',n:'交通費'},
+  {k:'comm',   n:'通信費'},
+  {k:'repay',  n:'返済'},
+  {k:'rent',   n:'家賃'},
+  {k:'other',  n:'その他'},
+];
+const expSum=e=>EXP_CATS.reduce((s,c)=>s+(e[c.k]||0),0);
+
+const STORAGE_KEY='sonohigurashi_v1';
+// Default state derived from the embedded seed data.
+function seedState(){
+  return {
+    init:{...SEED_INIT},
+    entries:SEED_ENTRIES.map(e=>{
+      const o={date:e.date,note:e.note||'',
+        inAmt:e.inAmt||0,inAcct:e.inAcct||'ufj',inMemo:e.inMemo||'',
+        outAcct:e.outAcct||'ufj',outMemo:e.outMemo||''};
+      EXP_CATS.forEach(c=>o[c.k]=e[c.k]||0);
+      return o;
+    })
+  };
+}
+let storageOK=false;
+function loadState(){
+  try{
+    const raw=localStorage.getItem(STORAGE_KEY);
+    storageOK=true;
+    if(raw){const s=JSON.parse(raw); if(s&&s.init&&Array.isArray(s.entries))return s;}
+  }catch(e){storageOK=false;}
+  return seedState();
+}
+const _s=loadState();
+let init=_s.init;
+let entries=_s.entries;
+let chart=null;
+let editIdx=-1, curIO='out';
+
+// Auto-save: called after every change. Silently no-ops if storage is unavailable.
+let saveTimer=null;
+function save(){
+  if(!storageOK)return;
+  try{
+    localStorage.setItem(STORAGE_KEY,JSON.stringify({init,entries}));
+    flashSaved();
+  }catch(e){/* storage full or blocked */}
+}
+function flashSaved(){
+  const el=document.getElementById('saveStatus');
+  if(!el)return;
+  el.textContent='✓ 自動保存しました';el.style.opacity='1';
+  clearTimeout(saveTimer);
+  saveTimer=setTimeout(()=>{el.style.opacity='0';},1600);
+}
+
+const yen=n=>'¥'+Math.round(n).toLocaleString('ja-JP');
+// Start date of this ledger. Rows on/before this count as "current"; later rows are forecasts.
+const START_DATE='2026-06-16';
+const realToday=new Date().toISOString().slice(0,10);
+const todayStr=realToday>START_DATE?realToday:START_DATE;
+
+// Two independent series (matching the original Numbers sheet):
+//  - 予定残高 (planTotal): a single running line = 起点 + 予定入金 − 予定出金, accumulated.
+//    It is NOT split by account and predicted expenses NEVER touch real account balances.
+//  - 実残高 (actualTotal): the sum of the per-account balances the user HAND-ENTERS for
+//    that day (e.actual). Only appears on days the user recorded. The starting account
+//    balances (init) are the hand-entered figures for the start date.
+//  - 差額 (diffCum) = 実残高 − 予定残高, on days that have an actual reading.
+function compute(){
+  const sorted=[...entries].sort((a,b)=>a.date.localeCompare(b.date));
+  const startTotal=ACCTS.reduce((s,a)=>s+(init[a.k]||0),0); // 起点（各口座の手入力合計）
+  const startDate=sorted.length?sorted[0].date:null;
+  let plan=startTotal; // 予定残高の累計
+  let rows=[];
+  for(const e of sorted){
+    const out=expSum(e);
+    plan = plan + (e.inAmt||0) - out; // 予定残高ライン
+    // Actual: what the user hand-entered for that day. The starting account balances
+    // (init) ARE the user's hand-entered reading for the start date.
+    let actualTotal=null, diffCum=null, diffDay=null, actualSnap=null;
+    const hasActual = e.actual && Object.keys(e.actual).length;
+    if(hasActual){
+      actualSnap={...e.actual};
+    }else if(e.date===startDate){
+      actualSnap={...init}; // 起点日は各口座の入力値そのもの
+    }
+    if(actualSnap){
+      actualTotal=ACCTS.reduce((s,a)=>s+(Number(actualSnap[a.k])||0),0);
+      diffCum=actualTotal-plan; // 実残高 − 予定残高
+    }
+    rows.push({...e,out,total:plan,actualTotal,actualSnap,diffCum});
+  }
+  // Daily diff: change in (actual−plan) between consecutive days that have actual readings.
+  let lastDiff=null;
+  for(const r of rows){
+    if(r.diffCum!==null){
+      r.diffDay = lastDiff===null ? r.diffCum : r.diffCum-lastDiff;
+      lastDiff=r.diffCum;
+    }
+  }
+  return rows;
+}
+
+function renderCards(){
+  const rows=compute();
+  const past=rows.filter(r=>r.date<=todayStr);
+  // Account balances = the most recent HAND-ENTERED reading (e.actual). Before any
+  // reading, fall back to the starting balances (init). Predicted expenses never apply.
+  let cur={...init};
+  const withAct=past.filter(r=>r.actualSnap);
+  if(withAct.length) cur={...withAct[withAct.length-1].actualSnap};
+  const total=ACCTS.reduce((s,a)=>s+(cur[a.k]||0),0);
+  let html=`<div class="acct total"><div class="lbl">総資産（実残高）</div><div class="val">${yen(total)}</div></div>`;
+  ACCTS.forEach(a=>{
+    html+=`<div class="acct"><div class="lbl"><span class="dot" style="background:${a.c}"></span>${a.n}</div>
+      <div class="val">${yen(cur[a.k]||0)}</div></div>`;
+  });
+  document.getElementById('cards').innerHTML=html;
+}
+
+function renderLedger(){
+  const rows=compute();
+  const colspan=7+EXP_CATS.length; // 日付/曜日/入金(3) + cats(6) + 摘要/予定残高/実残高/差額(4) = 13
+  const catHeads=EXP_CATS.map(c=>`<th>${c.n}</th>`).join('');
+  let html='<thead><tr><th>日付</th><th>曜日</th><th>入金</th>'+catHeads+'<th>摘要</th><th>予定残高</th><th>実残高</th><th>差額</th></tr></thead><tbody>';
+  let curMonth='';
+  rows.forEach((r,i)=>{
+    const d=new Date(r.date+'T00:00:00');
+    const ym=r.date.slice(0,7);
+    if(ym!==curMonth){curMonth=ym;
+      html+=`<tr class="mhead"><td colspan="${colspan}">${ym.replace('-','年')}月</td></tr>`;}
+    const wd=d.getDay();
+    const wcl=wd===0?'wknd':wd===6?'holi':'';
+    const future=r.date>todayStr?'opacity:.5':'';
+    const memo=[r.inMemo,r.outMemo,r.note].filter(Boolean).join(' / ');
+    const catCells=EXP_CATS.map(c=>`<td class="out">${r[c.k]?yen(r[c.k]):''}</td>`).join('');
+    const actCell=r.actualTotal!==null?yen(r.actualTotal):'';
+    let diffCell='';
+    if(r.diffCum!==null){
+      const cls=r.diffCum>0?'pos':r.diffCum<0?'neg':'';
+      diffCell=`<span class="${cls}">${r.diffCum>0?'+':''}${yen(r.diffCum)}</span>`;
+    }
+    html+=`<tr style="${future}" onclick="openEntry('${r.date}')">
+      <td class="dt">${r.date.slice(5)}</td>
+      <td class="dt ${wcl}">${YOUBI[wd]}</td>
+      <td class="in">${r.inAmt?yen(r.inAmt):''}</td>
+      ${catCells}
+      <td class="memo">${memo}</td>
+      <td class="bal ${r.total<0?'neg':''}">${yen(r.total)}</td>
+      <td>${actCell}</td>
+      <td class="diffcell">${diffCell}</td></tr>`;
+  });
+  html+='</tbody>';
+  document.getElementById('ledger').innerHTML=html;
+}
+
+function renderChart(){
+  const rows=compute();
+  if(!rows.length)return;
+  const labels=rows.map(r=>r.date.slice(5));
+  const planData=rows.map(r=>Math.round(r.total));
+  // 実残高: only on days with a reading; null elsewhere. spanGaps connects across gaps.
+  const actualData=rows.map(r=>r.actualTotal!==null?Math.round(r.actualTotal):null);
+  const hasAnyActual=actualData.some(v=>v!==null);
+  const todayIdx=rows.findIndex(r=>r.date>todayStr);
+  if(chart)chart.destroy();
+  const datasets=[{
+    label:'予定残高',data:planData,
+    borderColor:'#34607d',backgroundColor:'rgba(52,96,125,.08)',
+    fill:true,tension:.2,pointRadius:0,borderWidth:2,
+    segment:{borderDash:ctx=>todayIdx>=0&&ctx.p0DataIndex>=todayIdx-1?[5,4]:undefined}
+  }];
+  if(hasAnyActual){
+    datasets.push({
+      label:'実残高',data:actualData,
+      borderColor:'#b4533a',backgroundColor:'rgba(180,83,58,.05)',
+      fill:false,tension:.2,pointRadius:3,pointBackgroundColor:'#b4533a',
+      borderWidth:2,spanGaps:true
+    });
+  }
+  chart=new Chart(document.getElementById('chart'),{
+    type:'line',
+    data:{labels,datasets},
+    options:{maintainAspectRatio:false,
+      plugins:{legend:{display:true,position:'top',labels:{boxWidth:12,font:{size:11}}},
+        tooltip:{callbacks:{
+          title:items=>rows[items[0].dataIndex].date,
+          label:c=>c.dataset.label+'：'+yen(c.parsed.y)}}},
+      scales:{y:{ticks:{callback:v=>'¥'+(v/10000).toFixed(0)+'万'},grid:{color:'#eef0ea'}},
+        x:{grid:{display:false},ticks:{maxTicksLimit:10}}}}
+  });
+}
+
+function renderUpcoming(){
+  const up=entries.filter(e=>e.date>=todayStr&&(e.inAmt>0||expSum(e)>0))
+    .sort((a,b)=>a.date.localeCompare(b.date)).slice(0,12);
+  let html='';
+  if(!up.length)html='<div class="hint">本日以降の予定はありません。</div>';
+  up.forEach(e=>{
+    if(e.inAmt>0)html+=`<div class="row"><span>${e.date.slice(5)} ${e.inMemo||'入金'}<span class="badge in">入</span></span><span class="amt" style="color:var(--green)">${yen(e.inAmt)}</span></div>`;
+    const out=expSum(e);
+    if(out>0)html+=`<div class="row"><span>${e.date.slice(5)} ${e.outMemo||'出金'}<span class="badge out">出</span></span><span class="amt" style="color:var(--red)">${yen(out)}</span></div>`;
+  });
+  document.getElementById('upcoming').innerHTML=html;
+}
+
+function renderDiff(){
+  const rows=compute();
+  // Most recent day (on/before today) that has an actual reading.
+  const withActual=rows.filter(r=>r.actualTotal!==null && r.date<=todayStr);
+  const body=document.getElementById('diffBody');
+  if(!withActual.length){
+    body.innerHTML='<div class="diffmsg none">まだ実残高が記録されていません。記入画面で「この日の実際の残高を記録する」にチェックを入れ、各口座の残高を入力すると、予定との差がここに表示されます。</div>';
+    return;
+  }
+  const last=withActual[withActual.length-1];
+  const cum=last.diffCum;        // 累計の差（実−予定）
+  const day=last.diffDay;        // 前回記録時からの差の変化
+  const sign=v=>v>0?'+':'';
+  const cls=v=>v>0?'pos':v<0?'neg':'';
+  // cum>0 means actual is above plan (spending less / more cash than planned) = good
+  // cum<0 means actual is below plan (overspending) = warn
+  let msg;
+  if(cum<0){
+    msg=`<div class="diffmsg over">実際の残高が予定より <b>${yen(-cum)}</b> 少なくなっています。予定より支出が多い状態です。この調子だと先々の資金計画に影響するので、支出を抑えるか予定を見直すことをおすすめします。</div>`;
+  }else if(cum>0){
+    msg=`<div class="diffmsg under">実際の残高が予定より <b>${yen(cum)}</b> 多い状態です。予定どおり、またはそれより支出を抑えられています。</div>`;
+  }else{
+    msg=`<div class="diffmsg none">実際の残高が予定とぴったり一致しています。計画どおりです。</div>`;
+  }
+  body.innerHTML=`
+    <div class="asof">最終記録日：${last.date}</div>
+    <div class="diffstat"><span class="lbl">予定残高</span><span class="v">${yen(last.total)}</span></div>
+    <div class="diffstat"><span class="lbl">実際の残高</span><span class="v">${yen(last.actualTotal)}</span></div>
+    <div style="text-align:center;margin-top:6px">
+      <div class="lbl" style="font-size:12px;color:var(--ink2)">予定との差（累計）</div>
+      <div class="diffbig ${cls(cum)}">${sign(cum)}${yen(cum)}</div>
+    </div>
+    ${day!==null?`<div class="diffstat"><span class="lbl">前回記録からの変化</span><span class="v ${cls(day)}">${sign(day)}${yen(day)}</span></div>`:''}
+    ${msg}`;
+}
+
+// Aggregate income/expense by calendar year (Jan–Dec). 2026 starts in June (partial).
+function renderAnnual(){
+  const byYear={};
+  entries.forEach(e=>{
+    const y=e.date.slice(0,4);
+    if(!byYear[y])byYear[y]={inc:0,exp:0,minM:13,maxM:0};
+    byYear[y].inc+=(e.inAmt||0);
+    byYear[y].exp+=expSum(e);
+    const m=parseInt(e.date.slice(5,7));
+    byYear[y].minM=Math.min(byYear[y].minM,m);
+    byYear[y].maxM=Math.max(byYear[y].maxM,m);
+  });
+  const years=Object.keys(byYear).sort();
+  let html='<table class="annual"><thead><tr><th>年</th><th>集計期間</th><th>収入累計</th><th>支出累計</th><th>収支</th></tr></thead><tbody>';
+  years.forEach(y=>{
+    const d=byYear[y];
+    const net=d.inc-d.exp;
+    const partial = (d.minM>1||d.maxM<12) ? `<span class="partial">（${d.minM}〜${d.maxM}月）</span>` : '';
+    html+=`<tr>
+      <td class="yr">${y}年</td>
+      <td>${d.minM}月〜${d.maxM}月 ${partial}</td>
+      <td class="inc">${yen(d.inc)}</td>
+      <td class="exp">${yen(d.exp)}</td>
+      <td class="net ${net<0?'neg':'pos'}">${net>=0?'+':''}${yen(net)}</td></tr>`;
+  });
+  html+='</tbody></table>';
+  document.getElementById('annualBody').innerHTML=html;
+}
+
+function renderAll(){renderCards();renderAnnual();renderDiff();renderLedger();renderChart();renderUpcoming();}
+
+// ---- entry modal ----
+function acctOptions(){return ACCTS.map(a=>`<option value="${a.k}">${a.n}</option>`).join('');}
+function setIO(io){curIO=io;
+  document.querySelectorAll('#segIO button').forEach(b=>b.classList.toggle('on',b.dataset.io===io));
+  document.getElementById('inBlock').style.display=io==='in'?'block':'none';
+  document.getElementById('outBlock').style.display=io==='out'?'block':'none';
+}
+function openEntry(date){
+  document.getElementById('fInAcct').innerHTML=acctOptions();
+  document.getElementById('fOutAcct').innerHTML=acctOptions();
+  // Build expense category inputs from EXP_CATS.
+  document.getElementById('expFields').innerHTML=EXP_CATS.map(c=>
+    `<div><label>${c.n}</label><input id="f_${c.k}" type="number" placeholder="0"></div>`).join('');
+  // Build actual per-account balance inputs from ACCTS.
+  document.getElementById('actualFields').innerHTML=ACCTS.map(a=>
+    `<div><label>${a.n}</label><input id="act_${a.k}" type="number" placeholder="0"></div>`).join('');
+  const ex=date?entries.find(e=>e.date===date):null;
+  editIdx=ex?entries.indexOf(ex):-1;
+  document.getElementById('dlgTitle').textContent=ex?'編集する':'記入する';
+  document.getElementById('delBtn').style.display=ex?'block':'none';
+  document.getElementById('fDate').value=date||todayStr;
+  document.getElementById('fIn').value=ex&&ex.inAmt?ex.inAmt:'';
+  document.getElementById('fInAcct').value=ex?ex.inAcct:'ufj';
+  document.getElementById('fInMemo').value=ex?ex.inMemo:'';
+  EXP_CATS.forEach(c=>{document.getElementById('f_'+c.k).value=ex&&ex[c.k]?ex[c.k]:'';});
+  document.getElementById('fOutAcct').value=ex?ex.outAcct:'ufj';
+  document.getElementById('fOutMemo').value=ex?ex.outMemo:'';
+  document.getElementById('fNote').value=ex?ex.note:'';
+  // Actual balances
+  const hasAct=ex&&ex.actual&&Object.keys(ex.actual).length>0;
+  document.getElementById('fHasActual').checked=!!hasAct;
+  ACCTS.forEach(a=>{document.getElementById('act_'+a.k).value=hasAct&&ex.actual[a.k]!=null?ex.actual[a.k]:'';});
+  toggleActual();
+  setIO(ex&&ex.inAmt>0&&!expSum(ex)?'in':'out');
+  document.getElementById('dlg').showModal();
+}
+function toggleActual(){
+  const on=document.getElementById('fHasActual').checked;
+  document.getElementById('actualFields').style.display=on?'grid':'none';
+}
+function saveEntry(){
+  const v=id=>document.getElementById(id).value;
+  const num=id=>parseFloat(v(id))||0;
+  const obj={
+    date:v('fDate'),note:v('fNote'),
+    inAmt:num('fIn'),inAcct:v('fInAcct'),inMemo:v('fInMemo'),
+    outAcct:v('fOutAcct'),outMemo:v('fOutMemo')
+  };
+  EXP_CATS.forEach(c=>obj[c.k]=num('f_'+c.k));
+  // Actual balances: only stored if the checkbox is on. Blank fields are omitted.
+  if(document.getElementById('fHasActual').checked){
+    const act={};
+    ACCTS.forEach(a=>{const raw=v('act_'+a.k);if(raw!=='')act[a.k]=parseFloat(raw)||0;});
+    if(Object.keys(act).length) obj.actual=act;
+  }
+  if(!obj.date){alert('日付を入力してください');return;}
+  // merge if a same-date entry exists and we're adding new
+  if(editIdx>=0){entries[editIdx]=obj;}
+  else{
+    const same=entries.findIndex(e=>e.date===obj.date);
+    if(same>=0){
+      const e=entries[same];
+      e.inAmt+=obj.inAmt; if(obj.inMemo)e.inMemo=obj.inMemo; if(obj.inAmt)e.inAcct=obj.inAcct;
+      EXP_CATS.forEach(c=>e[c.k]=(e[c.k]||0)+obj[c.k]);
+      if(obj.outMemo)e.outMemo=obj.outMemo; if(expSum(obj))e.outAcct=obj.outAcct;
+      if(obj.note)e.note=obj.note;
+      if(obj.actual)e.actual=obj.actual; // overwrite reading for that day
+    } else entries.push(obj);
+  }
+  document.getElementById('dlg').close();save();renderAll();
+}
+function delEntry(){if(editIdx>=0){entries.splice(editIdx,1);document.getElementById('dlg').close();save();renderAll();}}
+
+// ---- init modal ----
+function openInit(){
+  let html='';
+  ACCTS.forEach(a=>{html+=`<label>${a.n}</label><input id="init_${a.k}" type="number" value="${init[a.k]||0}">`;});
+  document.getElementById('initFields').innerHTML=html;
+  document.getElementById('dlgInit').showModal();
+}
+function saveInit(){
+  ACCTS.forEach(a=>{init[a.k]=parseFloat(document.getElementById('init_'+a.k).value)||0;});
+  document.getElementById('dlgInit').close();save();renderAll();
+}
+
+// ---- CSV ----
+// Columns: 日付,曜日,入金,入金口座,入金摘要,[EXP_CATS...],出金口座,出金摘要,メモ,実残高(口座別)
+function exportCSV(){
+  const catNames=EXP_CATS.map(c=>c.n);
+  const head=['日付','曜日','入金','入金口座','入金摘要',...catNames,'出金口座','出金摘要','メモ','実残高(口座別)'];
+  const memoCol=5+EXP_CATS.length+2; // index of メモ column
+  const actCol=memoCol+1;            // index of 実残高 column
+  const sorted=[...entries].sort((a,b)=>a.date.localeCompare(b.date));
+  let lines=[head.join(',')];
+  // init row: balances stored in メモ column
+  const initRow=new Array(head.length).fill('');
+  initRow[0]='＜初期残高＞';
+  initRow[memoCol]=ACCTS.map(a=>a.n+':'+(init[a.k]||0)).join(' ');
+  lines.push(initRow.join(','));
+  sorted.forEach(e=>{
+    const wd=YOUBI[new Date(e.date+'T00:00:00').getDay()];
+    const catVals=EXP_CATS.map(c=>e[c.k]||'');
+    const actStr=e.actual&&Object.keys(e.actual).length
+      ? ACCTS.filter(a=>e.actual[a.k]!=null).map(a=>a.n+':'+e.actual[a.k]).join(' ') : '';
+    const row=[e.date,wd,e.inAmt||'',e.inAmt?accName(e.inAcct):'',q(e.inMemo),
+      ...catVals,
+      expSum(e)?accName(e.outAcct):'',q(e.outMemo),q(e.note),q(actStr)];
+    lines.push(row.join(','));
+  });
+  download('その日暮らし_'+todayStr+'.csv','\ufeff'+lines.join('\n'));
+}
+function accName(k){const a=ACCTS.find(x=>x.k===k);return a?a.n:k;}
+function q(s){s=(s||'').toString();return /[,"\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;}
+function download(name,text){
+  const b=new Blob([text],{type:'text/csv'});const u=URL.createObjectURL(b);
+  const a=document.createElement('a');a.href=u;a.download=name;a.click();URL.revokeObjectURL(u);
+}
+function importCSV(ev){
+  const f=ev.target.files[0];if(!f)return;
+  const rd=new FileReader();
+  rd.onload=()=>{
+    try{
+      const rev={};ACCTS.forEach(a=>rev[a.n]=a.k);
+      const nCat=EXP_CATS.length;
+      const memoCol=5+nCat+2; // after 5 lead cols + cats + 出金口座 + 出金摘要
+      const actCol=memoCol+1;
+      const lines=rd.result.replace(/^\ufeff/,'').split(/\r?\n/).filter(x=>x.trim());
+      const body=lines.slice(1);const ne=[];
+      body.forEach(l=>{
+        const c=parseCSVLine(l);
+        if(c[0]&&c[0].startsWith('＜初期残高＞')){
+          (c[memoCol]||'').split(/\s+/).forEach(p=>{const[n,v]=p.split(':');if(rev[n])init[rev[n]]=parseFloat(v)||0;});
+          return;
+        }
+        if(!/^\d{4}-\d{2}-\d{2}$/.test(c[0]))return;
+        const obj={date:c[0],note:c[memoCol]||'',
+          inAmt:parseFloat(c[2])||0,inAcct:rev[c[3]]||'ufj',inMemo:c[4]||'',
+          outAcct:rev[c[5+nCat]]||'ufj',outMemo:c[5+nCat+1]||''};
+        EXP_CATS.forEach((cat,i)=>obj[cat.k]=parseFloat(c[5+i])||0);
+        // Actual balances (optional column; old files won't have it)
+        const actStr=c[actCol]||'';
+        if(actStr.trim()){
+          const act={};
+          actStr.split(/\s+/).forEach(p=>{const[n,v]=p.split(':');if(rev[n])act[rev[n]]=parseFloat(v)||0;});
+          if(Object.keys(act).length)obj.actual=act;
+        }
+        ne.push(obj);
+      });
+      if(ne.length){entries=ne;save();renderAll();alert(ne.length+'件を読み込みました');}
+      else alert('有効な行が見つかりませんでした');
+    }catch(err){alert('読み込みに失敗しました: '+err.message);}
+  };
+  rd.readAsText(f);ev.target.value='';
+}
+function parseCSVLine(l){
+  const out=[];let cur='',q=false;
+  for(let i=0;i<l.length;i++){const ch=l[i];
+    if(q){if(ch==='"'){if(l[i+1]==='"'){cur+='"';i++;}else q=false;}else cur+=ch;}
+    else{if(ch==='"')q=true;else if(ch===','){out.push(cur);cur='';}else cur+=ch;}}
+  out.push(cur);return out;
+}
+
+function resetData(){
+  if(!confirm('入力したデータをすべて消して、最初の状態（2026年6月16日スタート）に戻します。よろしいですか？'))return;
+  const s=seedState();init=s.init;entries=s.entries;
+  save();renderAll();
+}
+
+// On open, tell the user whether auto-save is active in this environment.
+function checkStorage(){
+  const el=document.getElementById('saveStatus');
+  if(!storageOK){
+    el.style.color='var(--gold)';el.style.opacity='1';
+    el.textContent='⚠ この画面では自動保存は無効（端末でファイルを開くと有効になります）';
+  }
+}
+
+renderAll();
+checkStorage();
+</script>
+</body>
+</html>
